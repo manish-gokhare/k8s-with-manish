@@ -425,3 +425,99 @@ Sources
 [6] Ephemeral Volumes https://kubernetes.io/docs/concepts/storage/ephemeral-volumes/
 [7] Configure a Pod to Use a Volume for Storage https://kubernetes.io/docs/tasks/configure-pod-container/configure-volume-storage/
 [8] 5 Types of Kubernetes Volumes and How to Work with Them https://www.netapp.com/learn/cvo-blg-5-types-of-kubernetes-volumes-and-how-to-work-with-them/
+
+
+
+# Test with multi container Pod with emptyDir
+=============================================
+To test a multi-container Pod sharing a volume using **emptyDir**, you can create a Pod manifest with two containers that both mount the same emptyDir volume
+but at possibly different paths. One container writes data to the shared volume, and the other reads that data.
+
+Here is a simple example manifest and steps to test:
+
+```yaml
+apiVersion: v1
+kind: Pod
+meta
+  name: shared-emptydir-pod
+spec:
+  volumes:
+  - name: shared-data
+    emptyDir: {}
+  containers:
+  - name: writer
+    image: busybox
+    command: ["/bin/sh", "-c"]
+    args:
+      - while true; do date >> /mnt/shared/date.txt; sleep 5; done
+    volumeMounts:
+    - name: shared-data
+      mountPath: /mnt/shared
+  - name: reader
+    image: busybox
+    command: ["/bin/sh", "-c"]
+    args:
+      - while true; do cat /shared/date.txt; sleep 5; done
+    volumeMounts:
+    - name: shared-data
+      mountPath: /shared
+```
+
+### How to Test
+
+1. **Apply the Pod manifest:**
+   ```bash
+   kubectl apply -f shared-emptydir-pod.yaml
+   ```
+
+2. **Check Pod status:**
+   ```bash
+   kubectl get pod shared-emptydir-pod
+   ```
+   Wait until it is in the `Running` state.
+
+3. **See logs of the reader container showing the data written by the writer container:**
+   ```bash
+   kubectl logs shared-emptydir-pod -c reader
+   ```
+   You should see the datetime entries appended by the `writer` container.
+
+4. **Exec into either container to manually check the shared volume contents, e.g.:**
+   ```bash
+   kubectl exec -it shared-emptydir-pod -c writer -- sh
+   ls /mnt/shared
+   cat /mnt/shared/date.txt
+   ```
+
+5. **Confirm that changes made by one container are visible to the other, proving the shared nature of the emptyDir volume.**
+
+***
+
+### Explanation
+
+- The `emptyDir` volume named `shared-data` is created when the Pod starts.
+- Both containers mount this volume, but at different `mountPath`s (`/mnt/shared` and `/shared`).
+- The `writer` container writes the current date continuously into a file inside the volume.
+- The `reader` container reads this file continuously and outputs to its logs.
+- Because emptyDir is shared among containers in the same Pod, the reader container sees the file updates in real-time.
+
+***
+
+This method is a common approach for testing shared volume usage in multi-container Pods using an `emptyDir` volume.
+
+Sources:
+- Arun's Kubernetes blog with examples of multi-container Pods sharing emptyDir volumes[1].
+- Kubernetes official docs highlighting emptyDir as shared between containers in a Pod[2][6].
+- Practical examples of shared logs or files between containers[5].
+
+Sources
+[1] How to Use EmptyDir Volumes on Kubernetes - Arun's blog https://arun944.hashnode.dev/kubernetes-volumes-emptydir
+[2] Volumes | Kubernetes https://kubernetes.io/docs/concepts/storage/volumes/
+[3] Understanding Kubernetes emptyDir — With 3 Practical Use-cases https://decisivedevops.com/understanding-kubernetes-emptydir-with-3-practical-use-cases-960f550e0e34/
+[4] Configure a Pod to Use a Volume for Storage - Kubernetes https://kubernetes.io/docs/tasks/configure-pod-container/configure-volume-storage/
+[5] MultiContainer with shared Volume as EmptyDir working however ... https://stackoverflow.com/questions/77693075/multicontainer-with-shared-volume-as-emptydir-working-however-when-used-shared-v
+[6] Communicate Between Containers in the Same Pod Using a Shared ... https://kubernetes.io/docs/tasks/access-application-cluster/communicate-containers-same-pod-shared-volume/
+[7] Multi-Container Pods in Kubernetes https://linchpiner.github.io/k8s-multi-container-pods.html
+[8] How to share data between containers with K8s shared volume https://www.spectrocloud.com/blog/how-to-share-data-between-containers-with-k8s-shared-volumes
+[9] Kubernetes Storage Made Easy: Kubernetes & Persistent Volume https://devtron.ai/blog/kubernetes-storage-made-easy-kubernetes-volumes-persistent-volumes/
+
