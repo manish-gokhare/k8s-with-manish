@@ -229,3 +229,94 @@ Sources
 [6] Ephemeral Storage in Kubernetes: Overview & Guide - Portworx https://portworx.com/knowledge-hub/ephemeral-storage-in-kubernetes-overview-guide/
 [7] 5 Types of Kubernetes Volumes and How to Work with Them | NetApp https://www.netapp.com/learn/cvo-blg-5-types-of-kubernetes-volumes-and-how-to-work-with-them/
 [8] How to take tmpfs usage into account in Kubernetes resource ... https://stackoverflow.com/questions/71405477/how-to-take-tmpfs-usage-into-account-in-kubernetes-resource-allocation
+
+
+
+EmptyDir() with Deployment or Replicaset
+=======================================
+
+No, an **emptyDir volume does not share data between pods** in a Deployment with multiple replicas. 
+
+Each Pod in a Deployment gets its own separate instance of the emptyDir volume that is created afresh on the node where the Pod is scheduled.
+
+Detailed explanation:
+- **emptyDir** volume is *pod-scoped* and exists only for the lifetime of that specific Pod on a specific node. It is created empty when the Pod starts and deleted when the Pod is removed.
+- In a Deployment with 3 replicas, Kubernetes creates 3 separate Pods, each with its own independent emptyDir volume.
+- These volumes live on the node where each Pod is scheduled, and *are not shared* across Pods or nodes.
+- As a result, data written in the emptyDir of one Pod is isolated and *cannot be accessed* by other Pods.
+
+If you want to share data between replicas (pods) in a Deployment, you need to use a **shared persistent volume** like a PersistentVolumeClaim (PVC) backed by storage that supports sharing (e.g., NFS, Ceph, cloud shared disks) and mounted as `ReadWriteMany`.
+
+**Summary:**
+
+| Aspect                      | emptyDir Volume                        | Persistent Volume with PVC (shared)            |
+|-----------------------------|-------------------------------------|------------------------------------------------|
+| Scope                       | Pod (unique per Pod replica)         | Can be shared between multiple Pods            |
+| Data visibility across Pods | No (isolated)                       | Yes (shared storage)                            |
+| Lifetime                    | Pod lifetime                       | Independent of Pods, persistent                  |
+| Use case                    | Temporary scratch space, cache      | Shared configuration, persistent data storage   |
+
+This is consistent with Kubernetes official documentation stating emptyDir volumes are created newly for *each Pod* and deleted once the Pod is removed[1][3].
+
+Sources:
+- Kubernetes official docs on Volumes and emptyDir[1]
+- Unofficial Kubernetes docs on emptyDir lifecycle[3]
+- Practical knowledge of volume behavior in Deployments and replicasNo, an emptyDir volume is *not* shared between Pods in a Deployment with multiple replicas. Each Pod gets its own separate emptyDir volume created fresh on the node where that Pod runs. The emptyDir is scoped to the individual Pod lifecycle, so data written in one Pod’s emptyDir is isolated and cannot be accessed by other Pods.
+
+To share data between multiple Pods (like 3 replicas in a Deployment), you would need a shared PersistentVolume backed by storage that supports multi-attach, such as NFS, Ceph, or a cloud file share, mounted via a PersistentVolumeClaim with ReadWriteMany access mode.
+
+In short:
+
+| Volume Type           | Shared Across Pods? | Lifecycle          | Typical Use Case                     |
+|----------------------|--------------------|--------------------|------------------------------------|
+| emptyDir             | No                 | Pod lifetime       | Temporary local storage per Pod    |
+| PersistentVolumeClaim | Yes (if ReadWriteMany) | Independent       | Shared or persistent storage       |
+
+So emptyDir is best suited for ephemeral, pod-local scratch or cache space, not cross-pod data sharing[1][3].
+
+Sources
+[1] Volumes | Kubernetes https://kubernetes.io/docs/concepts/storage/volumes/
+[2] Kubernetes emptyDir is not the same as Docker's volumes-from https://www.fairwinds.com/blog/kubernetes-emptydir-not-the-same-as-dockers-volumes-from
+[3] Volumes - Unofficial Kubernetes - Read the Docs https://unofficial-kubernetes.readthedocs.io/en/latest/concepts/storage/volumes/
+[4] Ephemeral Volumes - Kubernetes https://kubernetes.io/docs/concepts/storage/ephemeral-volumes/
+[5] Kubernetes persistent volume options - Outshift | Cisco https://outshift.cisco.com/blog/persistent-volumes-k8s
+[6] Replicate docker-compose volume behavior in kubernetes https://stackoverflow.com/questions/57378980/replicate-docker-compose-volume-behavior-in-kubernetes
+[7] How to K8s: Persistent and Ephemeral Volumes - MacStadium https://www.macstadium.com/blog/ephemeral-volumes
+[8] debug: ability to replicate volume mounts · Issue #1071 - GitHub https://github.com/kubernetes/kubectl/issues/1071
+[9] StatefulSets misunderstood or my ignorance? : r/kubernetes - Reddit https://www.reddit.com/r/kubernetes/comments/1691w3w/statefulsets_misunderstood_or_my_ignorance/
+
+
+No, even if **all Pods with emptyDir volumes are scheduled on the same node**, each Pod gets its own separate emptyDir volume, isolated from the others. **emptyDir is scoped to a single Pod's lifecycle** and is not shared between Pods, regardless of whether they run on the same node or different nodes**.
+
+Key points:
+- The emptyDir volume is created fresh for each Pod on the node it is scheduled.
+- Containers within the *same* Pod can share the emptyDir volume.
+- Different Pods, even if on the same node, each get independent emptyDir directories.
+- Data written in one Pod's emptyDir is not visible or accessible to another Pod.
+
+If you want to share data between multiple Pods simultaneously (even on the same node), you need a shared persistent volume like a PersistentVolumeClaim backed by a network file system (e.g., NFS) or a shared storage solution that supports multi-attach access modes.
+
+This is consistent with Kubernetes official behavior and confirmed by practical sources explaining emptyDir volumes are strictly Pod-local storage and not shared across Pods, even on the same node[1][2][4][5].
+
+Hence:
+
+| Scenario            | Data Sharing Between Pods with emptyDir on Same Node? |
+|---------------------|-------------------------------------------------------|
+| Multiple Pods on same node, each with emptyDir volume | No, isolated per Pod                                 |
+| Multiple containers within the same Pod sharing emptyDir | Yes, shared among containers                          |
+
+Sources:
+- Kubernetes official docs on emptyDir volume lifecycle and usage[4][5]
+- Practical Kubernetes blog explains emptyDir sharing is within single Pod containers only[1][2]
+- Community examples confirm emptyDir is not shared between Pods, even on the same node[3]
+
+Sources
+[1] Kubernetes Pods Storage and Volume Sharing https://www.baeldung.com/ops/kubernetes-pods-share-storage
+[2] How to Use EmptyDir Volumes on Kubernetes - Arun's blog https://arun944.hashnode.dev/kubernetes-volumes-emptydir
+[3] MultiContainer with shared Volume as EmptyDir working ... https://stackoverflow.com/questions/77693075/multicontainer-with-shared-volume-as-emptydir-working-however-when-used-shared-v
+[4] Volumes https://kubernetes.io/docs/concepts/storage/volumes/
+[5] Understanding Kubernetes emptyDir — With 3 Practical Use ... https://decisivedevops.com/understanding-kubernetes-emptydir-with-3-practical-use-cases-960f550e0e34/
+[6] Communicate Between Containers in the Same Pod Using ... https://kubernetes.io/docs/tasks/access-application-cluster/communicate-containers-same-pod-shared-volume/
+[7] Can all my nodes and pods share a same read only ... https://www.reddit.com/r/kubernetes/comments/1mjy01r/can_all_my_nodes_and_pods_share_a_same_read_only/
+[8] How to share data between containers with K8s ... https://www.spectrocloud.com/blog/how-to-share-data-between-containers-with-k8s-shared-volumes
+
