@@ -151,6 +151,38 @@ specific directory managed by Kubernetes—not just inside the container, but on
 
 kubectl get pod example-pod -n default -o jsonpath='{.metadata.uid}'
 
+or 
+
+Go to the worker node execute crictl ps > get the container > crictl inspect <container-id>
+
+# crictl ps
+CONTAINER           IMAGE               CREATED             STATE               NAME                ATTEMPT             POD ID              POD
+e3a497dcc417b       6d3e4188a38af       3 minutes ago       Running             app-container       0                   c006055a56372       example-pod
+
+# crictl inspect e3a497dcc417b 
+
+        {
+          "destination": "/data",   # This is the Volume (EmptyDir)
+          "type": "bind",
+          "source": "/var/lib/kubelet/pods/805e4615-85f4-4ab4-a1b9-ebbdd0a4ddf2/volumes/kubernetes.io~empty-dir/temp-storage",  # This is the path on the node.
+          "options": [
+            "rbind",
+            "rprivate",
+            "rw"
+          ]
+        },
+
+
+[rheluser@master volume]$ kubectl exec -it example-pod -- sh -c "echo 'This is test for EmptyDir volume' > /data/app.log"
+
+[root@worker-1 ~]# cd /var/lib/kubelet/pods/805e4615-85f4-4ab4-a1b9-ebbdd0a4ddf2/volumes/kubernetes.io~empty-dir/temp-storage
+[root@worker-1 temp-storage]# ls -ltr
+total 4
+-rw-r--r--. 1 root root 33 Aug 10 17:02 app.log
+[root@worker-1 temp-storage]# cat app.log 
+This is test for EmptyDir volume
+
+
 
 - This directory is created when the Pod is scheduled to node2, and all files written via `/data` inside your container exist as real files in this host path for as long as the Pod lives on node2 (container restarts don’t clear them)[7].
 - You cannot access this data from outside the Pod directly (unless you log into node2 itself and visit the path above), but it means the storage and the data reside physically on node2’s disk or RAM, depending on configuration[3][7].
