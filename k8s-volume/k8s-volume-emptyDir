@@ -320,3 +320,108 @@ Sources
 [7] Can all my nodes and pods share a same read only ... https://www.reddit.com/r/kubernetes/comments/1mjy01r/can_all_my_nodes_and_pods_share_a_same_read_only/
 [8] How to share data between containers with K8s ... https://www.spectrocloud.com/blog/how-to-share-data-between-containers-with-k8s-shared-volumes
 
+# Multicontainer Pod ###
+==============================
+
+In a multi-container Pod using an **emptyDir** volume, you do **not** have to use the *same mount path* in each container, but you **must** use the **same volume name** under each container's `volumeMounts` 
+to refer to the shared emptyDir volume defined in `spec.volumes`. 
+
+Kubernetes will make that same volume (the shared emptyDir) available at the specified mount paths in each container individually, so different containers 
+can mount it at different paths if you want.
+
+### Summary:
+- The volume name in `volumeMounts` must be the **same** across containers to share the `emptyDir` volume.
+- The **mountPath** can be **different or same** in each container, depending on how you want the volume to be accessible inside each container's filesystem.
+
+### Example:
+
+```yaml
+apiVersion: v1
+kind: Pod
+meta
+  name: multi-container-pod
+spec:
+  volumes:
+  - name: shared-data
+    emptyDir: {}
+
+  containers:
+  - name: container-one
+    image: busybox
+    command: ["sleep", "3600"]
+    volumeMounts:
+    - name: shared-data
+      mountPath: /data/container-one  # Mount path inside container one
+
+  - name: container-two
+    image: busybox
+    command: ["sleep", "3600"]
+    volumeMounts:
+    - name: shared-data
+      mountPath: /mnt/container-two  # Different mount path in container two
+```
+
+
+
+Both containers share the same `emptyDir` volume `shared-data`, but inside each container it is mounted at different paths. 
+Files written by one container to the volume persist and are visible to the other container under their respective mount paths.
+
+### Why this works:
+- Kubernetes creates the `emptyDir` volume once per Pod.
+- That volume is mounted into all containers that reference it by name.
+- Each container can choose any path inside its filesystem (`mountPath`) to mount the shared volume.
+
+### Source references:
+- Kubernetes official docs state: "All containers in the Pod can read and write the same files in the emptyDir volume, though that volume can be mounted at the same or different paths in each container"[3].
+- Examples and discussions on StackOverflow and kubermatic blog confirm volume name consistency with flexible mount paths in multi-container Pods[1][2].
+
+So to directly answer your question:  
+**No, you don't need the same mount path name**, but you *must* use the same volume name in `volumeMounts` to share the emptyDir volume between containers in the Pod.
+
+Sources
+[1] MultiContainer with shared Volume as EmptyDir working however ... https://stackoverflow.com/questions/77693075/multicontainer-with-shared-volume-as-emptydir-working-however-when-used-shared-v
+[2] Volume and volumeMounts: An Introduction - Kubermatic https://www.kubermatic.com/blog/keeping-the-state-of-apps-1-introduction-to-volume-and-volumemounts/
+[3] Volumes | Kubernetes https://kubernetes.io/docs/concepts/storage/volumes/
+[4] Explaining the Difference Between subPath and mountPath in ... https://www.baeldung.com/ops/kubernetes-subpath-vs-mountpath
+[5] Communicate Between Containers in the Same Pod Using a Shared ... https://kubernetes.io/docs/tasks/access-application-cluster/communicate-containers-same-pod-shared-volume/
+[6] How to Use EmptyDir Volumes on Kubernetes - Arun's blog https://arun944.hashnode.dev/kubernetes-volumes-emptydir
+[7] Configure a Pod to Use a Volume for Storage - Kubernetes https://kubernetes.io/docs/tasks/configure-pod-container/configure-volume-storage/
+[8] Multi-Container Pods in Kubernetes https://linchpiner.github.io/k8s-multi-container-pods.html
+[9] How to share data between containers with K8s shared volume https://www.spectrocloud.com/blog/how-to-share-data-between-containers-with-k8s-shared-volumes
+
+
+An **emptyDir volume** in Kubernetes is created when a Pod is assigned to a node, and the actual data for that volume is stored on the node’s filesystem under this path, 
+So volume_name will be shared between the container. Container mount path name can be different.
+
+```
+/var/lib/kubelet/pods/{pod_uid}/volumes/kubernetes.io~empty-dir/{volume_name}/
+```
+
+Here is the detailed explanation:
+
+- When a Pod with an emptyDir volume is scheduled on a node, Kubernetes’ kubelet creates a directory on that node's local disk (or in memory if `emptyDir.medium: "Memory"` is set) specifically for that volume.
+- This directory lives on the **node itself**, outside the container sandbox, and is managed by the kubelet.
+- The container(s) inside the Pod see this storage mounted at the specified `mountPath` (e.g., `/data`), but the physical files actually reside on the node disk under the kubelet's directory tree.
+- This volume exists **only as long as the Pod runs on that node**, and all containers within the same Pod share access to this same directory.
+- If the Pod is deleted, evicted, or moved to another node, this directory and all its data are removed permanently from the node.
+- Node-level access to this directory is possible if you have access to the node (e.g., via SSH), but the volume is isolated from other Pods—even on the same node.
+
+Sources supporting this:
+
+- "The volume lives on the host, outside of the container... The default mountPath for each pod has a root location of `/var/lib/kubelet/pods/{pod_uid}/volumes/kubernetes.io~empty-dir/`" [1].
+- "The location should be `/var/lib/kubelet/pods/{podid}/volumes/kubernetes.io~empty-dir/` on the given node where your pod is running." [2].
+- Kubernetes official docs: "For a Pod that defines an emptyDir volume, the volume is created when the Pod is assigned to a node... stored on whatever medium that backs the node such as disk, SSD, or network storage..." [3].
+- StackOverflow confirms emptyDir data physically resides in `/var/lib/kubelet/pods/PODUID/volumes/kubernetes.io~empty-dir/VOLUMENAME` on the node [4].
+- Lifecycle details confirm emptyDir is created at Pod assignment and deleted with Pod removal, storing data locally per node [5].
+
+In summary, the emptyDir volume corresponds to a directory on the node under the kubelet's management directories, shared among containers in the Pod, and lasting only for that Pod's lifetime on that node.
+
+Sources
+[1] How to Collect Log Data from Kubernetes Using emptyDir https://edgedelta.com/company/blog/how-to-collect-kubernetes-log-data-emptydir
+[2] Kubernetes - Volumes - Learning-Ocean https://learning-ocean.com/tutorials/kubernetes/kubernetes-volumes/
+[3] Volumes https://kubernetes.io/docs/concepts/storage/volumes/
+[4] Does Kubernetes mount an emptyDir volume on the host? https://stackoverflow.com/questions/46525081/does-kubernetes-mount-an-emptydir-volume-on-the-host
+[5] Understanding Kubernetes emptyDir — With 3 Practical Use ... https://decisivedevops.com/understanding-kubernetes-emptydir-with-3-practical-use-cases-960f550e0e34/
+[6] Ephemeral Volumes https://kubernetes.io/docs/concepts/storage/ephemeral-volumes/
+[7] Configure a Pod to Use a Volume for Storage https://kubernetes.io/docs/tasks/configure-pod-container/configure-volume-storage/
+[8] 5 Types of Kubernetes Volumes and How to Work with Them https://www.netapp.com/learn/cvo-blg-5-types-of-kubernetes-volumes-and-how-to-work-with-them/
