@@ -61,3 +61,12 @@ Handling connection for 8090
 Login to Webbrowser:
 http://127.0.0.1:8090
 
+
+```login to container ```
+Main container (nginx) serves the file from /usr/share/nginx/html/
+manish@MacBook-Pro-va-FOX k8s % kubectl exec -it nginx-with-init -- /bin/sh
+Defaulted container "nginx-container" out of: nginx-container, init-config (init)
+# ls
+
+# cat /usr/share/nginx/html/index.html
+Welcome to Nginx!
