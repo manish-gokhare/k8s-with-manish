@@ -52,4 +52,12 @@ Serves the HTML file created by the init container.
 
 ```Do the port-forward to see the application which is runnning in the container.
   kubectl port-forward pod/nginx-with-init 8090:80
-  
+
+Forwarding from 127.0.0.1:8090 -> 80
+Forwarding from [::1]:8090 -> 80
+Handling connection for 8090
+Handling connection for 8090
+
+Login to Webbrowser:
+http://127.0.0.1:8090
+
