@@ -70,3 +70,10 @@ Defaulted container "nginx-container" out of: nginx-container, init-config (init
 
 # cat /usr/share/nginx/html/index.html
 Welcome to Nginx!
+
+
+```Debug the container
+kubectl logs nginx-with-init
+
+As initContainer do not stay running after their task in complete. Once it is complete k8s remove them from running state.
+
