@@ -1,0 +1,55 @@
+✅ What is an Init Container?
+An Init Container is a special container in a Pod that:
+
+Runs before the main containers.
+Performs initialization tasks.
+Must complete successfully before the main containers start.
+Can have different images, tools, or configurations than the main container.
+
+```
+Let’s say you have a web server (nginx) that needs a config file. You can use an Init Container to create that file:
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-with-init
+spec:
+  volumes:
+  - name: config-volume
+    emptyDir: {}
+
+  initContainers:
+  - name: init-config
+    image: busybox
+    command: ['sh', '-c', 'echo "Welcome to Nginx!" > /config/index.html']
+    volumeMounts:
+    - name: config-volume
+      mountPath: /config
+
+  containers:
+  - name: nginx
+    image: nginx
+    volumeMounts:
+    - name: config-volume
+      mountPath: /usr/share/nginx/html
+    ports:
+    - containerPort: 80
+```
+  
+🔍 What Happens Here:
+
+
+Init Container (init-config):
+
+Runs first.
+Writes a simple HTML file to /config/index.html.
+Mounts a shared volume (config-volume).
+
+Main Container (nginx):
+Starts only after the init container finishes.
+Mounts the same volume at /usr/share/nginx/html.
+Serves the HTML file created by the init container.
+
+```Do the port-forward to see the application which is runnning in the container.
+  kubectl port-forward pod/nginx-with-init 8090:80
+  
