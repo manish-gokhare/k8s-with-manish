@@ -22,7 +22,10 @@ In a multi-node Kubernetes cluster (like your example with 5 worker nodes), if y
 The Pod runs on one specific node (e.g., worker-node-1) with ip address : 192.168.1.0
 The nginx container listens on port 80.
 The host machine (worker-node-1) with ip address : 192.168.1.0 maps its port 8080 to the container's port 80. 
- https://192.168.1.0:8080  ---> access ngix-container.
+https://192.168.1.0:8080  ---> access ngix-container.
+The hostPort binds the Pod to a specific node.
+
+kubectl get pod nginx-pod -o wide --> Get the IP address of Workernod1 
 
  
 
