@@ -1,0 +1,24 @@
+**Pod communication :** 
+Pod communicate with each other with Pod IP address. IP 10.244.0.74 is IP address of httpd pod.
+
+```yaml
+#Create httpd-pod
+manish@MacBook-Pro-va-FOX k8s % kubectl run httpd-pod --image=httpd
+
+pod/httpd-pod created
+
+#Create nginx-example-pod
+manish@MacBook-Pro-va-FOX k8s % kubectl run nginx-example-pod --image=nginx
+
+pod/nginx-example-pod created
+
+#Go inside the nginx-example-pod and access httpd-pod with httpd-pod IP.
+manish@MacBook-Pro-va-FOX k8s % kubectl exec -it nginx-example-pod -- /bin/bash
+
+root@nginx-example-pod:/# curl http://10.244.0.74
+
+<html><body><h1>It works!</h1></body></html>
+
+root@nginx-example-pod:/# curl http://10.244.0.74:80
+
+<html><body><h1>It works!</h1></body></html>
